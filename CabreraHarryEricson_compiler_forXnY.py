@@ -1,135 +1,95 @@
-import re
+import tokenize
+from io import BytesIO
 
-class Token:
-    def __init__(self, type, value):
-        self.type = type
-        self.value = value
+# function for lexical analysis
+def lexical_analysis(expression):
+    tokens = []
+    # tokenize the expression using the importedtokenize module
+    for tok in tokenize.tokenize(BytesIO(expression.encode('utf-8')).readline):
+        # appending each token as a tuple to the tokens list
+        tokens.append((tokenize.tok_name[tok.type], tok.string))
+    return tokens
 
-class Lexer:
-    def __init__(self, text):
-        self.text = text
-        self.pos = 0
-        self.current_token = None
+# function for parser analysis
+def parser_analysis(tokens):
+    # initialize an abstract syntax tree
+    ast = {'operator': None, 'left': None, 'right': None}
+    current_node = ast
 
-    def error(self):
-        raise Exception('Invalid character')
+    for token_type, token_value in tokens:
+        if token_type == 'NAME':
+            # in variable assignment, left side of the AST node is set
+            current_node['left'] = token_value
+        elif token_type == 'OP':
+            if token_value == '=':
+                # in assignment operator, the operator and create a new ast node on the right is set
+                current_node['operator'] = token_value
+                current_node['right'] = {'operator': None, 'left': None, 'right': None}
+                current_node = current_node['right']
+            elif token_value in {'+', '-', '*', '/'}:
+                # in arithmetic operators, the operator and create a new ast node on the right is set
+                current_node['operator'] = token_value
+                current_node['right'] = {'operator': None, 'left': None, 'right': None}
+                current_node = current_node['right']
+        elif token_type == 'NUMBER':
+            # for numeric values, ast is set a floatt
+            current_node['left'] = float(token_value)
 
-    def get_next_token(self):
-        if self.pos >= len(self.text):
-            return Token('EOF', None)
+    return ast
 
-        current_char = self.text[self.pos]
-
-        if re.match(r'\d', current_char):
-            self.pos += 1
-            return Token('NUMBER', int(current_char))
-
-        if current_char == '+':
-            self.pos += 1
-            return Token('PLUS', '+')
-
-        if current_char == '-':
-            self.pos += 1
-            return Token('MINUS', '-')
-
-        if current_char == '*':
-            self.pos += 1
-            return Token('MULTIPLY', '*')
-
-        if current_char == '/':
-            self.pos += 1
-            return Token('DIVIDE', '/')
-
-        if current_char == '=':
-            self.pos += 1
-            return Token('ASSIGN', '=')
-
-        if re.match(r'[a-zA-Z]', current_char):
-            self.pos += 1
-            return Token('VAR', current_char)
-
-        self.error()
-
-    def get_tokens(self):
-        tokens = []
-        while True:
-            token = self.get_next_token()
-            tokens.append(token)
-            if token.type == 'EOF':
-                break
-        return tokens
-    
-
-class Parser:
-    def __init__(self, lexer):
-        self.lexer = lexer
-        self.current_token = self.lexer.get_next_token()
-
-    def error(self):
-        raise Exception('Invalid syntax')
-
-    def eat(self, token_type):
-        if self.current_token.type == token_type:
-            self.current_token = self.lexer.get_next_token()
-        else:
-            self.error()
-
-    def factor(self):
-        token = self.current_token
-        if token.type == 'NUMBER':
-            self.eat('NUMBER')
-            return token.value
-        elif token.type == 'VAR':
-            self.eat('VAR')
-            return token.value
-        else:
-            self.error()
-
-    def term(self):
-        result = self.factor()
-
-        while self.current_token.type in ['MULTIPLY', 'DIVIDE']:
-            token = self.current_token
-            if token.type == 'MULTIPLY':
-                self.eat('MULTIPLY')
-                result *= self.factor()
-            elif token.type == 'DIVIDE':
-                self.eat('DIVIDE')
-                result /= self.factor()
-
-        return result
-
-    def expr(self):
-        if self.current_token.type == 'VAR':
-            var_name = self.current_token.value
-            self.eat('VAR')
-            self.eat('ASSIGN')
-            result = self.term()
-            return (var_name, result)
-        else:
-            self.error()
-
-    def parse(self):
-        return self.expr()
+# function to recursively evaluate the ast
+def evaluate_ast(ast):
+    if isinstance(ast, dict):
+        # checks if the node is a dictionary
+        if ast.get('operator') is None:
+            # if it's a leaf node, return the left side
+            return ast.get('left')
+        elif ast['operator'] == '=':
+            # if it's an assignment, evaluate the right side and store the result in variables dictionary
+            variables[ast['left']] = evaluate_ast(ast['right'])
+        elif ast['operator'] in {'+', '-', '*', '/'}:
+            # recursively evaluate left and right sides
+            left_result = evaluate_ast(ast['left'])
+            right_result = evaluate_ast(ast['right'])
+            
+            # this performs the arithmetic operation
+            if ast['operator'] == '+':
+                return left_result + right_result
+            elif ast['operator'] == '-':
+                return left_result - right_result
+            elif ast['operator'] == '*':
+                return left_result * right_result
+            elif ast['operator'] == '/':
+                return left_result / right_result
+    else:
+        # if the node is not a dictionary, return the value
+        return ast
 
 
-class Evaluator:
-    def __init__(self, parser):
-        self.parser = parser
-        self.variables = {}
+expression_a = "x = 4 / 5 * 8"
+expression_b = "y = 2.0 + 5 * 2"
 
-    def evaluate(self):
-        var_name, result = self.parser.parse()
-        self.variables[var_name] = result
-        return self.variables
+tokens_a = lexical_analysis(expression_a)
+tokens_b = lexical_analysis(expression_b)
 
-# Example usage
-lexer = Lexer('x = 4 / 5 * 8')
-parser = Parser(lexer)
-evaluator = Evaluator(parser)
-print(evaluator.evaluate())  # Output: {'x': 6.4}
+print("Lexical Analysis Result for expression_a:")
+print(tokens_a)
+print("\nLexical Analysis Result for expression_b:")
+print(tokens_b)
 
-lexer = Lexer('y = 2.0 + 5 * 2')
-parser = Parser(lexer)
-evaluator = Evaluator(parser)
-print(evaluator.evaluate())  # Output: {'y': 12.0}
+ast_a = parser_analysis(tokens_a)
+ast_b = parser_analysis(tokens_b)
+
+print("\nParser Analysis Result (Abstract Syntax Tree) for expression_a:")
+print(ast_a)
+print("\nParser Analysis Result (Abstract Syntax Tree) for expression_b:")
+print(ast_b)
+
+# vriables dictionary to store evaluated values
+variables = {}
+
+evaluate_ast(ast_a)
+evaluate_ast(ast_b)
+
+print("\nVariable Values:")
+print(variables)
